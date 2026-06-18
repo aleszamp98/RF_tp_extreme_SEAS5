@@ -223,3 +223,82 @@ def plot_pc_timeseries(pc_df: pd.DataFrame, var_name: str, max_eofs: int = None)
     plt.tight_layout()
     #fig.suptitle(f'Principal Component Time Series - {var_name.upper()}', fontsize=16, y=1.02)
     plt.show()
+
+
+def plot_grid_search_heatmap(grid_search):
+    """
+    Extracts results from a fitted GridSearchCV and plots a 2D heatmap 
+    evaluating 'n_estimators' vs 'max_depth' while freezing other parameters 
+    (like 'class_weight' and 'min_samples_leaf') at their best-found values.
+
+    Parameters
+    ----------
+    grid_search : sklearn.model_selection.GridSearchCV
+        The fitted GridSearchCV object containing cv_results_ and best_params_.
+        
+    Returns
+    -------
+    None
+        Displays the matplotlib figure.
+    """
+    print("\n--- GENERATING GRID SEARCH HEATMAP ---")
+    
+    results = pd.DataFrame(grid_search.cv_results_)
+    best_params = grid_search.best_params_
+    
+    # Filter results to fix all parameters except max_depth and n_estimators
+    mask = pd.Series([True] * len(results))
+    
+    for param, value in best_params.items():
+        if param not in ['max_depth', 'n_estimators']:
+            param_col = f'param_{param}'
+            mask &= (results[param_col].astype(str) == str(value))
+            
+    subset = results[mask].copy()
+    
+    if subset.empty:
+        print("Warning: Could not isolate a 2D grid for the heatmap. Check your param_grid structure.")
+        return
+
+    # Handle None values in max_depth for plotting purposes
+    subset['param_max_depth'] = subset['param_max_depth'].fillna('None').astype(str)
+    
+    # Create Pivot Table for the heatmap
+    pivot_table = subset.pivot(
+        index='param_max_depth', 
+        columns='param_n_estimators', 
+        values='mean_test_score'
+    )
+    
+    # Plotting
+    fig, ax = plt.subplots(figsize=(8, 6))
+    cax = ax.imshow(pivot_table.values, cmap='viridis', aspect='auto')
+    
+    # Set ticks and labels
+    ax.set_xticks(np.arange(len(pivot_table.columns)))
+    ax.set_yticks(np.arange(len(pivot_table.index)))
+    ax.set_xticklabels(pivot_table.columns)
+    ax.set_yticklabels(pivot_table.index)
+    
+    ax.set_xlabel('n_estimators', fontweight='bold')
+    ax.set_ylabel('max_depth', fontweight='bold')
+    
+    # Add title dynamically reporting the fixed class_weight and min_samples_leaf
+    fixed_cw = best_params.get('class_weight', 'Default')
+    fixed_leaf = best_params.get('min_samples_leaf', 'Default')
+    ax.set_title(f"GridSearch F1-Score Heatmap\n(Fixed class_weight: {fixed_cw} | min_samples_leaf: {fixed_leaf})", pad=15)
+    
+    # Add text annotations inside the heatmap cells
+    for i in range(len(pivot_table.index)):
+        for j in range(len(pivot_table.columns)):
+            val = pivot_table.values[i, j]
+            if not np.isnan(val):
+                color = "black" if val > pivot_table.values.max() * 0.8 else "white"
+                ax.text(j, i, f"{val:.3f}", ha="center", va="center", color=color, fontweight='bold')
+                
+    # Add colorbar
+    cbar = fig.colorbar(cax, ax=ax)
+    cbar.set_label('Mean Test F1-Score')
+    
+    plt.tight_layout()
+    plt.show()

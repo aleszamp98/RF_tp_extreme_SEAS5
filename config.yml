@@ -52,8 +52,12 @@ feature_extraction:
 ml_pipeline:
   random_state: 42
   random_forest_grid:
-    # Test different variance thresholds dynamically during script 04
-    variance_to_keep: [0.80, 0.90, 0.95] 
-    n_estimators: [100, 200, 500]
-    max_depth: [None, 10, 20]
-    min_samples_split: [2, 5]
+    n_estimators: [10, 50, 100, 150, 200]
+    max_depth: [3, 5, 7, 10, 15]
+    min_samples_leaf: [5, 10, 20, 50]
+    max_features: ['sqrt', 'log2', 0.2]
+    class_weight: 
+      - 'balanced'
+      - {0: 1, 1: 5}
+      - {0: 1, 1: 10}
+      - {0: 1, 1: 20}
