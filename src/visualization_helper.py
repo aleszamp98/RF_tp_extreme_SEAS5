@@ -5,6 +5,10 @@ import xarray as xr
 import matplotlib.pyplot as plt
 import cartopy.crs as ccrs
 import cartopy.feature as cfeature
+import joblib
+from sklearn.metrics import confusion_matrix, roc_curve, auc
+from sklearn.ensemble import RandomForestClassifier
+from typing import List, Optional, Union
 
 def plot_scree(explained_variance: pd.Series, var_name: str, max_eofs: int = None):
     """
@@ -299,6 +303,287 @@ def plot_grid_search_heatmap(grid_search):
     # Add colorbar
     cbar = fig.colorbar(cax, ax=ax)
     cbar.set_label('Mean Test F1-Score')
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_grid_search_heatmap_from_csv(
+    results_df: pd.DataFrame, 
+    best_params: dict, 
+    fixed_params: Optional[List[str]] = None
+) -> None:
+    """
+    Plots a 2D heatmap of GridSearchCV F1-scores for 'max_depth' vs 'n_estimators', 
+    freezing all other hyperparameters at their best values. The colormap is strictly 
+    bounded between 0.0 and 1.0.
+
+    Parameters
+    ----------
+    results_df : pandas.DataFrame
+        The full cross-validation results dataframe (e.g., loaded from grid_search_all_results.csv).
+    best_params : dict
+        Dictionary of the best parameters found during the grid search.
+    fixed_params : list of str, optional
+        Specific parameters to freeze. If None, it freezes all parameters in best_params 
+        except 'max_depth' and 'n_estimators'.
+
+    Returns
+    -------
+    None
+        Displays the matplotlib figure.
+    """
+    print("\n--- Generating Grid Search Heatmap ---")
+    
+    if fixed_params is None:
+        fixed_params = [p for p in best_params.keys() if p not in ['max_depth', 'n_estimators']]
+        
+    mask = pd.Series([True] * len(results_df))
+    
+    # Freeze the secondary parameters to isolate the 2D grid
+    for param in fixed_params:
+        param_col = f'param_{param}'
+        if param_col in results_df.columns:
+            target_value = str(best_params[param])
+            mask &= (results_df[param_col].astype(str) == target_value)
+            
+    subset = results_df[mask].copy()
+    
+    if subset.empty:
+        print("Warning: Could not isolate a 2D grid. Check your parameter names and values.")
+        return
+
+    # Handle None values in max_depth for categorical plotting
+    subset['param_max_depth'] = subset['param_max_depth'].fillna('None').astype(str)
+    
+    # Pivot the data for the heatmap
+    pivot_table = subset.pivot(
+        index='param_max_depth', 
+        columns='param_n_estimators', 
+        values='mean_test_score'
+    )
+    
+    # Plotting
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Enforce colormap limits from 0.0 to 1.0 using vmin and vmax
+    cax = ax.imshow(pivot_table.values, cmap='viridis', aspect='auto', vmin=0.1, vmax=0.2)
+    
+    # Axis configuration
+    ax.set_xticks(np.arange(len(pivot_table.columns)))
+    ax.set_yticks(np.arange(len(pivot_table.index)))
+    ax.set_xticklabels(pivot_table.columns)
+    ax.set_yticklabels(pivot_table.index)
+    
+    ax.set_xlabel('n_estimators', fontweight='bold')
+    ax.set_ylabel('max_depth', fontweight='bold')
+    
+    # Annotate cells with their F1-score
+    for i in range(len(pivot_table.index)):
+        for j in range(len(pivot_table.columns)):
+            val = pivot_table.values[i, j]
+            if not np.isnan(val):
+                # Adjust text color for contrast against the heatmap background
+                # Threshold set at 0.8 since max scale is strictly 1.0
+                color = "black" if val > 0.8 else "white"
+                ax.text(j, i, f"{val:.3f}", ha="center", va="center", color=color, fontweight='bold')
+                
+    # Add colorbar with explicit bounds
+    cbar = fig.colorbar(cax, ax=ax)
+    cbar.set_label('Mean Test F1-Score')
+    
+    plt.tight_layout()
+    plt.show()
+
+def plot_feature_importances(
+    model: RandomForestClassifier, 
+    feature_names: Union[List[str], pd.Index], 
+    top_n: int = 15
+) -> None:
+    """
+    Extracts and plots the top N most important features from a fitted Random Forest.
+
+    Parameters
+    ----------
+    model : sklearn.ensemble.RandomForestClassifier
+        The fitted tree-based model.
+    feature_names : list of str or pandas.Index
+        The names of the features corresponding to the model's input columns.
+    top_n : int, optional
+        The number of top features to display. Default is 15.
+
+    Returns
+    -------
+    None
+        Displays the matplotlib figure.
+    """
+    print(f"\n--- Generating Top {top_n} Feature Importances ---")
+    
+    importances = model.feature_importances_
+    
+    # Sort indices in descending order of importance
+    indices = np.argsort(importances)[::-1]
+    
+    # Select the top N features
+    top_indices = indices[:top_n]
+    top_importances = importances[top_indices]
+    top_features = [feature_names[i] for i in top_indices]
+    
+    # Reverse order so the highest importance is at the top of the horizontal bar chart
+    top_importances = top_importances[::-1]
+    top_features = top_features[::-1]
+    
+    fig, ax = plt.subplots(figsize=(10, 6))
+    
+    bars = ax.barh(np.arange(len(top_features)), top_importances, color='steelblue', edgecolor='black')
+    
+    ax.set_yticks(np.arange(len(top_features)))
+    ax.set_yticklabels(top_features)
+    ax.set_xlabel('Gini Importance (Mean Decrease Impurity)')
+    # ax.set_title('Feature Importances', fontweight='bold')
+    
+    # Add gridlines for readability
+    ax.grid(axis='x', linestyle='--', alpha=0.6)
+    
+    plt.tight_layout()
+    plt.show()
+
+
+def plot_custom_confusion_matrix(
+    y_true: np.ndarray, 
+    y_pred: np.ndarray, 
+    classes: List[str]
+) -> None:
+    """
+    Computes and plots a stylized confusion matrix using only Matplotlib.
+    Configured to display the X-axis on top, rotate Y-axis labels by 90 degrees,
+    and include binary classification terminology (TP, FP, TN, FN) in the cells.
+
+    Parameters
+    ----------
+    y_true : numpy.ndarray
+        1D array of true target values.
+    y_pred : numpy.ndarray
+        1D array of predicted target values.
+    classes : list of str
+        Ordered list of class labels (e.g., ['Normal', 'Extreme']). 
+        Assumes class 0 is Negative/Normal and class 1 is Positive/Extreme.
+
+    Returns
+    -------
+    None
+        Displays the matplotlib figure.
+    """
+    print("\n--- Generating Confusion Matrix ---")
+    
+    cm = confusion_matrix(y_true, y_pred)
+    
+    fig, ax = plt.subplots(figsize=(7, 7))
+    cax = ax.imshow(cm, interpolation='nearest', cmap='Blues')
+    
+    # Move X-axis ticks and label to the top
+    ax.xaxis.tick_top()
+    ax.xaxis.set_label_position('top')
+    
+    ax.set_xticks(np.arange(len(classes)))
+    ax.set_yticks(np.arange(len(classes)))
+    
+    # Set X labels
+    ax.set_xticklabels(classes, fontsize=11)
+    
+    # Set Y labels, rotated 90 degrees and centered vertically
+    ax.set_yticklabels(classes, rotation=90, va='center', fontsize=11)
+    
+    ax.set_ylabel('True Label', fontweight='bold', labelpad=15)
+    ax.set_xlabel('Predicted Label', fontweight='bold', labelpad=15)
+    
+    # Define terminology mapping for a standard 2x2 binary classification
+    if cm.shape == (2, 2):
+        term_labels = [
+            ['True Negative', 'False Positive'],
+            ['False Negative', 'True Positive']
+        ]
+    else:
+        term_labels = None
+
+    # Annotate cells with terminology and absolute numbers
+    thresh = cm.max() / 2.
+    
+    for i in range(cm.shape[0]):
+        for j in range(cm.shape[1]):
+            cell_value = cm[i, j]
+            
+            # Construct the display string dynamically
+            if term_labels is not None:
+                display_str = f"{term_labels[i][j]}\n\n{cell_value}"
+            else:
+                display_str = str(cell_value)
+                
+            ax.text(
+                j, i, display_str,
+                ha="center", va="center",
+                color="white" if cell_value > thresh else "black",
+                fontweight='bold', fontsize=11
+            )
+            
+    # Add colorbar
+    fig.colorbar(cax, ax=ax, fraction=0.046, pad=0.04)
+    plt.tight_layout()
+    plt.show()
+
+def plot_custom_roc_curve(y_true: np.ndarray, y_prob: np.ndarray) -> None:
+    """
+    Computes and plots the Receiver Operating Characteristic (ROC) curve 
+    and calculates the Area Under the Curve (AUC) using only Matplotlib.
+
+    Parameters
+    ----------
+    y_true : numpy.ndarray
+        1D array of true binary target values (0 or 1).
+    y_prob : numpy.ndarray
+        1D array of predicted probabilities for the positive class (class 1).
+
+    Returns
+    -------
+    None
+        Displays the matplotlib figure.
+    """
+    print("\n--- Generating ROC Curve ---")
+    
+    # Calculate False Positive Rate (FPR) and True Positive Rate (TPR)
+    fpr, tpr, thresholds = roc_curve(y_true, y_prob)
+    
+    # Calculate Area Under the Curve (AUC)
+    roc_auc = auc(fpr, tpr)
+    
+    # Initialize the plot
+    fig, ax = plt.subplots(figsize=(8, 6))
+    
+    # Plot the actual ROC curve
+    ax.plot(
+        fpr, tpr, 
+        color='darkorange', 
+        linewidth=2, 
+        label=f'ROC curve (AUC = {roc_auc:.3f})'
+    )
+    
+    # Plot the random chance baseline (diagonal line)
+    ax.plot([0, 1], [0, 1], color='navy', linewidth=2, linestyle='--')
+    
+    # Enforce standard ROC boundaries
+    ax.set_xlim([0.0, 1.0])
+    ax.set_ylim([0.0, 1.05])
+    
+    # Set labels and title
+    ax.set_xlabel('False Positive Rate')
+    ax.set_ylabel('True Positive Rate (Recall)')
+    ax.set_title('ROC Curve - Extreme Event Prediction', pad=10)
+    
+    # Add subtle grid matching the requested aesthetic
+    ax.grid(True, linestyle='-', alpha=0.3)
+    
+    # Add legend to the lower right corner
+    ax.legend(loc='lower right')
     
     plt.tight_layout()
     plt.show()

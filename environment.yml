@@ -1,0 +1,15 @@
+name: extreme-precip-RF-env
+channels:
+  - conda-forge
+  - defaults
+dependencies:
+  - python>=3.12
+  - numpy
+  - pandas
+  - scikit-learn
+  - matplotlib
+  - xarray
+  - cartopy
+  - joblib
+  - pyyaml
+  - cdsapi
