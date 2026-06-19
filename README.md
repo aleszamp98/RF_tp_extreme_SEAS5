@@ -1,7 +1,7 @@
 # Extreme Precipitation Prediction in West Africa using SEAS5 and Random Forests
 
 ## Introduction
-This repository provides the scripts for a the investigation of extreme precipitation events in the tropical context of West Africa (specifically Kumasi, Ghana) with a Random Forest Classifier. 
+This repository provides the scripts for the investigation of extreme precipitation over the West Africa domain with a Random Forest Classifier.
 
 Following the **UNSEEN (UNprecedented Simulated Extremes using ENsembles)** methodology, this study leverages the vast dataset provided by the ECMWF SEAS5 ensemble seasonal forecasts. The main goal is to understand how much relevant information is contained within large-scale instantaneous synoptic fields (Mean Sea Level Pressure, 500 hPa Geopotential Height, and 850 hPa Specific Humidity) to trigger extreme precipitation at a specific grid point. 
 
