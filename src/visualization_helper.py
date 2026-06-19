@@ -367,7 +367,7 @@ def plot_grid_search_heatmap_from_csv(
     fig, ax = plt.subplots(figsize=(8, 6))
     
     # Enforce colormap limits from 0.0 to 1.0 using vmin and vmax
-    cax = ax.imshow(pivot_table.values, cmap='viridis', aspect='auto', vmin=0.1, vmax=0.2)
+    cax = ax.imshow(pivot_table.values, cmap='viridis', aspect='auto', vmin=0.1, vmax=0.25)
     
     # Axis configuration
     ax.set_xticks(np.arange(len(pivot_table.columns)))
@@ -577,7 +577,7 @@ def plot_custom_roc_curve(y_true: np.ndarray, y_prob: np.ndarray) -> None:
     # Set labels and title
     ax.set_xlabel('False Positive Rate')
     ax.set_ylabel('True Positive Rate (Recall)')
-    ax.set_title('ROC Curve - Extreme Event Prediction', pad=10)
+    # ax.set_title('ROC Curve - Extreme Event Prediction', pad=10)
     
     # Add subtle grid matching the requested aesthetic
     ax.grid(True, linestyle='-', alpha=0.3)
