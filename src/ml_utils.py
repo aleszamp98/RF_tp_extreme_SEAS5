@@ -50,7 +50,7 @@ def prepare_ml_dataset(csv_path: Path):
 
 
 def train_rf_gridsearch(features: pd.DataFrame, target: pd.Series, groups: pd.Series, 
-                        param_grid: dict, output_dir: Path, test_size: float = 0.2):
+                        param_grid: dict, output_dir: Path, test_size: float, n_splits: int):
     """
     Splits the data based on whole years, initializes a Random Forest, 
     and runs a GridSearchCV utilizing GroupKFold to prevent temporal data leakage.
@@ -71,7 +71,8 @@ def train_rf_gridsearch(features: pd.DataFrame, target: pd.Series, groups: pd.Se
     test_size : float, optional
         The approximate proportion of the dataset to include in the test split.
         The algorithm will convert this to a whole number of years. Default is 0.2.
-
+    n_splits : int
+        Number of folds for GroupKFold cross-validation.
     Returns
     -------
     grid_search : sklearn.model_selection.GridSearchCV
@@ -81,6 +82,7 @@ def train_rf_gridsearch(features: pd.DataFrame, target: pd.Series, groups: pd.Se
     target_test : pandas.Series
         The subset of target variables used for testing.
     """
+    
     # 1. Determine whole-year splitting to match desired test_size
     unique_years = np.sort(groups.unique())
     n_total_years = len(unique_years)
@@ -107,8 +109,11 @@ def train_rf_gridsearch(features: pd.DataFrame, target: pd.Series, groups: pd.Se
     print(f"Test:  {n_test_years} years ({test_years[0]} to {test_years[-1]}), {len(features_test)} samples.")
     print(f"Actual resulting test percentage: {actual_test_pct:.2f}%\n")
 
-    # 3. Cross-Validation Configuration
-    gkf = GroupKFold(n_splits=min(5, n_train_years))
+    # 3. Cross-Validation Configuration (Dynamically uses n_splits from config)
+    # Safely caps k if it exceeds the number of available training groups
+    cv_folds = min(n_splits, n_train_years) 
+    gkf = GroupKFold(n_splits=cv_folds)
+    print(f"Using GroupKFold with {cv_folds} splits (requested: {n_splits}).")
     
     # 4. Base Model Definition
     rf = RandomForestClassifier(random_state=42, n_jobs=-1)
@@ -121,7 +126,7 @@ def train_rf_gridsearch(features: pd.DataFrame, target: pd.Series, groups: pd.Se
         cv=gkf, 
         scoring='f1', 
         n_jobs=-1,
-        verbose=3  # This makes the terminal "talk" constantly with timings
+        verbose=3  
     )
     
     # 5. Model fitting

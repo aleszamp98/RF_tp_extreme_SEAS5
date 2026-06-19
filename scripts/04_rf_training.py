@@ -29,17 +29,20 @@ def main():
     # 2. Prepare Data
     features_all, target_all, groups_all = prepare_ml_dataset(csv_path)
 
-    # 3. Define Hyperparameter Grid from config
+    # 3. Extract Hyperparameters & Pipeline Parameters from config
     param_grid = config["ml_pipeline"]["random_forest_grid"]
+    test_size_config = config["ml_pipeline"]["test_size"]
+    cv_folds_config = config["ml_pipeline"]["cv_folds"]
 
-    # 4. Train with GridSearchCV
+    # 4. Train with GridSearchCV (Passing the new config parameters)
     grid_search_results, features_test, target_test = train_rf_gridsearch(
         features=features_all,
         target=target_all,
         groups=groups_all,
         param_grid=param_grid,
         output_dir=models_dir,
-        test_size=0.2 
+        test_size=test_size_config,
+        n_splits=cv_folds_config
     )
 
     features_test_path = processed_dir / "features_test.csv"

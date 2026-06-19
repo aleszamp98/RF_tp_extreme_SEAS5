@@ -52,11 +52,11 @@ feature_extraction:
 ml_pipeline:
   random_state: 42
   test_size: 0.2
-  cv_folds: 4
+  cv_folds: 5
   random_forest_grid:
     n_estimators: [5, 10, 20, 50, 100, 150]
-    max_depth: [3, 5, 7, 10]
+    max_depth: [2, 3, 5, 7, 10]
     min_samples_leaf: [5, 10, 20, 50]
-    max_features: ['sqrt', 0.2]
+    max_features: ['sqrt', 'log2', 0.2]
     class_weight: 
       - 'balanced'
