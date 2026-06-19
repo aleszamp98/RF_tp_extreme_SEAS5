@@ -1,0 +1,4 @@
+Set_Valutazione,F1_Score,AUC_ROC
+Training (CV Mean),0.6031,0.9608
+Validation (CV Mean),0.2375,0.7654
+Test Set,0.2528,0.7762
